@@ -1,4 +1,3 @@
-# import RSA_Algrithm
 import random
 import math
 import struct
@@ -16,12 +15,28 @@ class RSA_main:
             number = (pow(byte, int(self.key[0]))) % int(self.key[1])
             # print(number)
             result += number.to_bytes(5, byteorder="little")
+        # return result
+        return self.toUTF8(result)
+
+    def toUTF8(self, byte):
+        result = str()
+        for i in range(len(byte)):
+            result += ((byte[i] >> 4).to_bytes(1, byteorder="little")).decode('UTF-8') + \
+                ((byte[i] & 0xf).to_bytes(1, byteorder="little")).decode('UTF-8')
+        return result
+
+    def toBytes(self, utf8):
+        result = bytes()
+        text = utf8.encode('UTF-8')
+        for i in range(0, len(text), 2):
+            result += ((text[i] << 4) + (text[i + 1])
+                       ).to_bytes(1, byteorder="little")
         return result
 
     def decrypt(self):
         # print("Decrypting...")
         result = bytes()
-
+        self.code = self.toBytes(self.code)
         for i in range(0, len(self.code), 5):
             byte = int.from_bytes(self.code[i: i+5], byteorder='little')
             # print(byte)
@@ -44,7 +59,9 @@ if __name__ == '__main__':
 
     encrypted = RSA_main(arr, publicKey)
     encryptedResult = encrypted.encrypt()
-    print(encryptedResult)
+    print(encryptedResult.encode('UTF-8'))
+
+    # print(encrypted.toBytes((b'\x0f\x0f').decode('UTF-8')))
 
     decrypted = RSA_main(encryptedResult, privateKey)
     decryptedResult = decrypted.decrypt()

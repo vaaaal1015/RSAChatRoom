@@ -5,7 +5,6 @@ import rsa
 import base64
 from rsa import PublicKey, PrivateKey
 from cmd import Cmd
-import sys
 from RSA.RSA_main import RSA_main
 from RSA.RSA_Algrithm import RSA_Algrithm
 
@@ -26,7 +25,6 @@ class Client(Cmd):
         self.__id = None
         self.__nickname = None
         self.__isLogin = False
-        # self.__pubKey, self.__privKey = rsa.newkeys(1024)
         self.__pubKey, self.__privKey = RSA_Algrithm().gennerateTwoKeys()
         self.__usersPubKey = list()
 
@@ -48,23 +46,16 @@ class Client(Cmd):
                     self.__usersPubKey = obj['otherUsersPubKey']
                 else:
 
-                    message = RSA_main(base64.b64decode(obj['message'].encode(
-                        'UTF-8') + b'==', self.__privKey)).decrypt().decode('UTF-8')
+                    mesg = RSA_main(obj['message'], self.__privKey).decrypt()
 
-                    print('[' + str(obj['sender_nickname']) +
-                          '(' + str(obj['sender_id']) + ')' + ']', message)
+                    print('[' + str(obj['sender_nickname']) + '(' +
+                          str(obj['sender_id']) + ')' + ']', mesg.decode('UTF-8'))
             except Exception:
-                print(Exception)
                 print('[Client] 无法从服务器获取数据')
 
     def __packMessage(self, receiver_id, message):
-        # n, e = self.__usersPubKey[receiver_id][0], self.__usersPubKey[receiver_id][1]
-        pubKey = self.__usersPubKey[receiver_id]
-
-        # enc_mesg = rsa.encrypt(message.encode('UTF-8'), PublicKey(n, e))
-        enc_mesg = RSA_main(message.encode('UTF-8'), pubKey).encrypt()
-        b64_mesg = base64.b64encode(enc_mesg)
-        mesg = b64_mesg.decode('UTF-8')
+        publicKey = self.__usersPubKey[receiver_id]
+        mesg = RSA_main(message, publicKey).encrypt()
         return mesg
 
     def __send_message_thread(self, message):
@@ -100,18 +91,21 @@ class Client(Cmd):
         self.__socket.send(json.dumps({
             'type': 'login',
             'nickname': nickname,
-            # 'pubkey': self.__turnPubKeyToList(self.__pubKey)
             'pubkey': self.__pubKey
         }).encode())
         # 尝试接受数据
         # noinspection PyBroadException
         try:
             buffer = self.__socket.recv(1024).decode()
+            pubKeyBuffer = self.__socket.recv(1024).decode()
             obj = json.loads(buffer)
+            obj1 = json.loads(pubKeyBuffer)
+
             if obj['id']:
                 self.__nickname = nickname
                 self.__id = obj['id']
                 self.__isLogin = True
+                self.__usersPubKey = obj1['otherUsersPubKey']
                 print('[Client] 成功登录到聊天室')
 
                 # 开启子线程用于接受数据

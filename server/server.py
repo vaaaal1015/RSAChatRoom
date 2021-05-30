@@ -74,14 +74,9 @@ class Server:
             self.__sendMessageTo(sender_id, i, message)
 
     def __packMessage(self, receiver_id, message):
-        # n = self.__users_pub_keys[receiver_id][0]
-        # e = self.__users_pub_keys[receiver_id][1]
-        # message = rsa.encrypt(message.encode('UTF-8'), PublicKey(n, e))
+        publicKey = self.__users_pub_keys[receiver_id]
+        mesg = RSA_main(message, publicKey).encrypt()
 
-        pubKey = self.__users_pub_keys[receiver_id]
-        enc_mesg = RSA_main(message.encode('UTF-8'), pubKey).encrypt()
-        b64_mesg = base64.b64encode(enc_mesg)
-        mesg = b64_mesg.decode('UTF-8')
         return mesg
 
     def __sendMessageTo(self, sender_id=0, receiver_id=0, message=''):
