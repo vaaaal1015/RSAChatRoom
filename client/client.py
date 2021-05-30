@@ -39,23 +39,33 @@ class Client(Cmd):
         """
         while self.__isLogin:
             # noinspection PyBroadException
-            try:
-                buffer = self.__socket.recv(1024).decode()
-                obj = json.loads(buffer)
-                if (obj['type'] == 'login' or obj['type'] == 'logout'):
-                    self.__usersPubKey = obj['otherUsersPubKey']
-                else:
+            # try:
+            #     buffer = self.__socket.recv(1024).decode()
+            #     obj = json.loads(buffer)
+            #     if (obj['type'] == 'login' or obj['type'] == 'logout'):
+            #         self.__usersPubKey = obj['otherUsersPubKey']
+            #     else:
 
-                    mesg = RSA_main(obj['message'], self.__privKey).decrypt()
+            #         mesg = RSA_main(obj['message'], self.__privKey).decrypt()
 
-                    print('[' + str(obj['sender_nickname']) + '(' +
-                          str(obj['sender_id']) + ')' + ']', mesg.decode('UTF-8'))
-            except Exception:
-                print('[Client] 无法从服务器获取数据')
+            #         print('[' + str(obj['sender_nickname']) + '(' +
+            #               str(obj['sender_id']) + ')' + ']', mesg.decode('UTF-8'))
+            # except Exception:
+            #     print('[Client] 无法从服务器获取数据')
+
+            buffer = self.__socket.recv(1024).decode()
+            obj = json.loads(buffer)
+            if (obj['type'] == 'login' or obj['type'] == 'logout'):
+                self.__usersPubKey = obj['otherUsersPubKey']
+            else:
+                mesg = RSA_main(obj['message'], self.__privKey).decrypt()
+                print('[' + str(obj['sender_nickname']) + '(' +
+                      str(obj['sender_id']) + ')' + ']', mesg.decode('UTF-8'))
 
     def __packMessage(self, receiver_id, message):
         publicKey = self.__usersPubKey[receiver_id]
-        mesg = RSA_main(message, publicKey).encrypt()
+        mesg = message.encode('UTF-8')
+        mesg = RSA_main(mesg, publicKey).encrypt()
         return mesg
 
     def __send_message_thread(self, message):

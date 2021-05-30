@@ -75,7 +75,8 @@ class Server:
 
     def __packMessage(self, receiver_id, message):
         publicKey = self.__users_pub_keys[receiver_id]
-        mesg = RSA_main(message, publicKey).encrypt()
+        mesg = message.encode('UTF-8')
+        mesg = RSA_main(mesg, publicKey).encrypt()
 
         return mesg
 
