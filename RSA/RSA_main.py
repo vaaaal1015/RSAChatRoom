@@ -16,14 +16,14 @@ class RSA_main:
             # print(number)
             result += number.to_bytes(5, byteorder="little")
         # return result
-        return self.splitBytes(result)
+        return self.toUTF8(result)
 
-    # def toUTF8(self, byte):
-    #     result = str()
-    #     for i in range(len(byte)):
-    #         result += ((byte[i] >> 4).to_bytes(1, byteorder="little")).decode('UTF-8') + \
-    #             ((byte[i] & 0xf).to_bytes(1, byteorder="little")).decode('UTF-8')
-    #     return result
+    def toUTF8(self, byte):
+        result = str()
+        for i in range(len(byte)):
+            result += ((byte[i] >> 4).to_bytes(1, byteorder="little")).decode('UTF-8') + \
+                ((byte[i] & 0xf).to_bytes(1, byteorder="little")).decode('UTF-8')
+        return result
 
     def splitBytes(self, byte):
         result = bytes()
@@ -32,9 +32,9 @@ class RSA_main:
                 (byte[i] & 0xf).to_bytes(1, byteorder="little")
         return result
 
-    def toBytes(self, text):
+    def toBytes(self, utf8):
         result = bytes()
-        # text = utf8.encode('UTF-8')
+        text = utf8.encode('UTF-8')
         for i in range(0, len(text), 2):
             result += ((text[i] << 4) + (text[i + 1])
                        ).to_bytes(1, byteorder="little")
@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
     encrypted = RSA_main(arr, publicKey)
     encryptedResult = encrypted.encrypt()
-    print(encryptedResult)
+    print(encryptedResult.encode('UTF-8'))
 
     # print(encrypted.toBytes((b'\x0f\x0f').decode('UTF-8')))
 
