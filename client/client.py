@@ -6,8 +6,8 @@ import base64
 from rsa import PublicKey, PrivateKey
 from cmd import Cmd
 import sys
-from .RSA_main import RSA_main
-from .RSA_Algrithm import RSA_Algrithm
+from RSA.RSA_main import RSA_main
+from RSA.RSA_Algrithm import RSA_Algrithm
 
 
 class Client(Cmd):
@@ -49,11 +49,12 @@ class Client(Cmd):
                 else:
 
                     message = RSA_main(base64.b64decode(obj['message'].encode(
-                        'UTF-8') + b'==', self.__privKey).decrypt().decode('UTF-8'))
+                        'UTF-8') + b'==', self.__privKey)).decrypt().decode('UTF-8')
 
                     print('[' + str(obj['sender_nickname']) +
                           '(' + str(obj['sender_id']) + ')' + ']', message)
             except Exception:
+                print(Exception)
                 print('[Client] 无法从服务器获取数据')
 
     def __packMessage(self, receiver_id, message):

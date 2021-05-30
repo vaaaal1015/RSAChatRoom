@@ -4,6 +4,8 @@ import json
 import base64
 import rsa
 from rsa import PublicKey
+from RSA.RSA_main import RSA_main
+from RSA.RSA_Algrithm import RSA_Algrithm
 
 
 class Server:
@@ -19,6 +21,7 @@ class Server:
         self.__connections = list()
         self.__nicknames = list()
         self.__users_pub_keys = list()
+
     def __user_thread(self, user_id):
         """
         用户子线程
@@ -28,7 +31,8 @@ class Server:
         nickname = self.__nicknames[user_id]
 
         print('[Server] 用户', user_id, nickname, '加入聊天室')
-        self.__broadcast(message='用户 ' + str(nickname) + '(' + str(user_id) + ')' + '加入聊天室')
+        self.__broadcast(message='用户 ' + str(nickname) +
+                         '(' + str(user_id) + ')' + '加入聊天室')
 
         # 侦听
         while True:
@@ -42,7 +46,8 @@ class Server:
                     self.__broadcast(obj['sender_id'], obj['message'])
                 elif obj['type'] == 'logout':
                     print('[Server] 用户', user_id, nickname, '退出聊天室')
-                    self.__broadcast(message='用户 ' + str(nickname) + '(' + str(user_id) + ')' + '退出聊天室')
+                    self.__broadcast(
+                        message='用户 ' + str(nickname) + '(' + str(user_id) + ')' + '退出聊天室')
                     self.__connections[user_id].close()
                     self.__connections[user_id] = None
                     self.__nicknames[user_id] = None
@@ -51,13 +56,15 @@ class Server:
                         if user_id != i and self.__connections[i]:
                             self.__connections[i].send(json.dumps({
                                 'type': 'logout',
-                                'otherUsersPubKey':self.__users_pub_keys
+                                'otherUsersPubKey': self.__users_pub_keys
                             }).encode())
                     break
                 else:
-                    print('[Server] 无法解析json数据包:', connection.getsockname(), connection.fileno())
+                    print('[Server] 无法解析json数据包:',
+                          connection.getsockname(), connection.fileno())
             except Exception:
-                print('[Server] 连接失效:', connection.getsockname(), connection.fileno())
+                print('[Server] 连接失效:', connection.getsockname(),
+                      connection.fileno())
                 self.__connections[user_id].close()
                 self.__connections[user_id] = None
                 self.__nicknames[user_id] = None
@@ -66,12 +73,14 @@ class Server:
         for i in range(len(self.__connections)):
             self.__sendMessageTo(sender_id, i, message)
 
-
     def __packMessage(self, receiver_id, message):
-        n = self.__users_pub_keys[receiver_id][0]
-        e = self.__users_pub_keys[receiver_id][1]
-        message = rsa.encrypt(message.encode('UTF-8'), PublicKey(n, e))
-        b64_mesg = base64.b64encode(message)
+        # n = self.__users_pub_keys[receiver_id][0]
+        # e = self.__users_pub_keys[receiver_id][1]
+        # message = rsa.encrypt(message.encode('UTF-8'), PublicKey(n, e))
+
+        pubKey = self.__users_pub_keys[receiver_id]
+        enc_mesg = RSA_main(message.encode('UTF-8'), pubKey).encrypt()
+        b64_mesg = base64.b64encode(enc_mesg)
         mesg = b64_mesg.decode('UTF-8')
         return mesg
 
@@ -100,7 +109,6 @@ class Server:
         e = pubKey['e']
         return [n, e]
 
-
     def __waitForLogin(self, connection):
         # 尝试接受数据
         # noinspection PyBroadException
@@ -125,13 +133,16 @@ class Server:
                         }).encode())
 
                 # 开辟一个新的线程
-                thread = threading.Thread(target=self.__user_thread, args=(len(self.__connections) - 1,))
+                thread = threading.Thread(
+                    target=self.__user_thread, args=(len(self.__connections) - 1,))
                 thread.setDaemon(True)
                 thread.start()
             else:
-                print('[Server] 无法解析json数据包:', connection.getsockname(), connection.fileno())
+                print('[Server] 无法解析json数据包:',
+                      connection.getsockname(), connection.fileno())
         except Exception:
-            print('[Server] 无法接受数据:', connection.getsockname(), connection.fileno())
+            print('[Server] 无法接受数据:', connection.getsockname(),
+                  connection.fileno())
 
     def start(self):
         """
@@ -153,8 +164,10 @@ class Server:
         # 开始侦听
         while True:
             connection, address = self.__socket.accept()
-            print('[Server] 收到一个新连接', connection.getsockname(), connection.fileno())
+            print('[Server] 收到一个新连接', connection.getsockname(),
+                  connection.fileno())
 
-            thread = threading.Thread(target=self.__waitForLogin, args=(connection,))
+            thread = threading.Thread(
+                target=self.__waitForLogin, args=(connection,))
             thread.setDaemon(True)
             thread.start()
