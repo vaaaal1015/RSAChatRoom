@@ -10,34 +10,24 @@ class RSA_main:
         self.key = key
 
     def encrypt(self):
-        print("Encrypting...")
-        # result = []
-        # for byte in self.code:
-        #     result.append((pow(byte, int(self.key[0]))) % int(self.key[1]))
-        #     print((result[-1]).to_bytes(5, byteorder="little"))
-        # return result
+        # print("Encrypting...")
         result = bytes()
         for byte in self.code:
-            number = (pow(byte, int(self.key[0]))) % int(
-                self.key[1])
-            print(number)
+            number = (pow(byte, int(self.key[0]))) % int(self.key[1])
+            # print(number)
             result += number.to_bytes(5, byteorder="little")
         return result
 
     def decrypt(self):
-        # result = []
-        print("Decrypting...")
-        # print(type(self.code))
-        # print(len(self.code))
+        # print("Decrypting...")
         result = bytes()
 
         for i in range(0, len(self.code), 5):
             byte = int.from_bytes(self.code[i: i+5], byteorder='little')
-            print(byte)
+            # print(byte)
             result += ((pow(byte, int(self.key[0]))) % int(
                 self.key[1])).to_bytes(2, byteorder="little")
         return result
-        # return None
 
 
 if __name__ == '__main__':
@@ -51,10 +41,12 @@ if __name__ == '__main__':
     print(publicKey[1])
     for byte in arr:
         print(byte, end=' ')
+
     encrypted = RSA_main(arr, publicKey)
     encryptedResult = encrypted.encrypt()
     print(encryptedResult)
 
     decrypted = RSA_main(encryptedResult, privateKey)
     decryptedResult = decrypted.decrypt()
+    print(decryptedResult)
     print(decryptedResult.decode('UTF-8'))
