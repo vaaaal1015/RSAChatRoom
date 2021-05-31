@@ -3,10 +3,9 @@ import threading
 import json
 import rsa
 import base64
+import struct
 from rsa import PublicKey, PrivateKey
 from cmd import Cmd
-from RSA.RSA_main import RSA_main
-from RSA.RSA_Algrithm import RSA_Algrithm
 
 
 class Client(Cmd):
@@ -25,48 +24,72 @@ class Client(Cmd):
         self.__id = None
         self.__nickname = None
         self.__isLogin = False
-        self.__pubKey, self.__privKey = RSA_Algrithm().gennerateTwoKeys()
+        self.__pubKey, self.__privKey = rsa.newkeys(1024)
         self.__usersPubKey = list()
+        #print(self.__pubKey['n'])
+        #print(self.__pubKey['e'])
 
-    def __turnPubKeyToList(self, pubKey):
-        n = pubKey['n']
-        e = pubKey['e']
+    def __turnPubKeyToList(self, pubk):
+        n = pubk['n']
+        e = pubk['e']
         return [n, e]
+
 
     def __receive_message_thread(self):
         """
         接受消息线程
         """
         while self.__isLogin:
-            # noinspection PyBroadException
-            # try:
-            #     buffer = self.__socket.recv(1024).decode()
-            #     obj = json.loads(buffer)
-            #     if (obj['type'] == 'login' or obj['type'] == 'logout'):
-            #         self.__usersPubKey = obj['otherUsersPubKey']
-            #     else:
+        # noinspection PyBroadException
+            try:
+                buffer = self.__recv_one_message(self.__socket).decode()
+                obj = json.loads(buffer)
+                if (obj['type'] == 'login' or obj['type'] == 'logout'):
+                    self.__usersPubKey = obj['otherUsersPubKey']
+                else:
+                    print('[' + str(obj['sender_nickname']) + '(' + str(obj['sender_id']) + ')' + ']', self.__decryptMessage(obj['message']))
+            except Exception:
+                print('[Client] 无法从服务器获取数据')
 
-            #         mesg = RSA_main(obj['message'], self.__privKey).decrypt()
+    def __send_one_message(self, sock, data): # input bytes
+        length = len(data)
+        sock.sendall(struct.pack('!I', length))
+        sock.sendall(data)
 
-            #         print('[' + str(obj['sender_nickname']) + '(' +
-            #               str(obj['sender_id']) + ')' + ']', mesg.decode('UTF-8'))
-            # except Exception:
-            #     print('[Client] 无法从服务器获取数据')
+    def __recvall(self, sock, count):
+        buf = b''
+        while count:
+            newbuf = sock.recv(count)
+            if not newbuf: return None
+            buf += newbuf
+            count -= len(newbuf)
+        return buf
 
-            buffer = self.__socket.recv(1024).decode()
-            obj = json.loads(buffer)
-            if (obj['type'] == 'login' or obj['type'] == 'logout'):
-                self.__usersPubKey = obj['otherUsersPubKey']
-            else:
-                mesg = RSA_main(obj['message'], self.__privKey).decrypt()
-                print('[' + str(obj['sender_nickname']) + '(' +
-                      str(obj['sender_id']) + ')' + ']', mesg.decode('UTF-8'))
+    def __recv_one_message(self, sock):  #return jsonObject
+        lengthbuf = self.__recvall(sock, 4)
+        length, = struct.unpack('!I', lengthbuf)
+        return self.__recvall(sock, length)
 
-    def __packMessage(self, receiver_id, message):
-        publicKey = self.__usersPubKey[receiver_id]
-        mesg = message.encode('UTF-8')
-        mesg = RSA_main(mesg, publicKey).encrypt()
-        return mesg
+
+    def __encryptMessage(self, receiver_id, message):
+        n, e = self.__usersPubKey[receiver_id][0], self.__usersPubKey[receiver_id][1]
+        #print(n)
+        #print(e)
+        message = message.encode('UTF-8')
+        message = rsa.encrypt(message, PublicKey(n, e))
+        message = base64.b64encode(message)
+        message = message.decode('UTF-8')
+        #print(message)
+        return message
+
+    def __decryptMessage(self, message):
+        #print(message)
+        message = message.encode('UTF-8')
+        message = base64.b64decode(message)
+        message = rsa.decrypt(message, self.__privKey)
+        message = message.decode('UTF-8')
+        return message
+
 
     def __send_message_thread(self, message):
         """
@@ -75,13 +98,16 @@ class Client(Cmd):
         """
         for receiver_id in range(len(self.__usersPubKey)):
             if (receiver_id != self.__id and self.__usersPubKey[receiver_id] != None):
-                message = self.__packMessage(receiver_id, message)
-                self.__socket.send(json.dumps({
-                    'type': 'broadcast',
+                mesg = ''
+                mesg = self.__encryptMessage(receiver_id, message)
+                jsonByte = json.dumps({
+                    'type': 'sendMessage',
                     'sender_id': self.__id,
                     'receiver_id': receiver_id,
-                    'message': message
-                }).encode())
+                    'message': mesg
+                }).encode()
+
+                self.__send_one_message(self.__socket, jsonByte)
 
     def start(self):
         """
@@ -98,24 +124,24 @@ class Client(Cmd):
         nickname = args.split(' ')[0]
 
         # 将昵称发送给服务器，获取用户id
-        self.__socket.send(json.dumps({
+        jsonByte = json.dumps({
             'type': 'login',
             'nickname': nickname,
-            'pubkey': self.__pubKey
-        }).encode())
+            'pubkey': self.__turnPubKeyToList(self.__pubKey)
+        }).encode()
+
+        self.__send_one_message(self.__socket, jsonByte)
+
         # 尝试接受数据
         # noinspection PyBroadException
         try:
-            buffer = self.__socket.recv(1024).decode()
-            pubKeyBuffer = self.__socket.recv(1024).decode()
+            buffer = self.__recv_one_message(self.__socket).decode()
             obj = json.loads(buffer)
-            obj1 = json.loads(pubKeyBuffer)
 
             if obj['id']:
                 self.__nickname = nickname
                 self.__id = obj['id']
                 self.__isLogin = True
-                self.__usersPubKey = obj1['otherUsersPubKey']
                 print('[Client] 成功登录到聊天室')
 
                 # 开启子线程用于接受数据
@@ -134,11 +160,9 @@ class Client(Cmd):
         """
         message = args
         # 显示自己发送的消息
-        print('[' + str(self.__nickname) +
-              '(' + str(self.__id) + ')' + ']', message)
+        print('[' + str(self.__nickname) + '(' + str(self.__id) + ')' + ']', message)
         # 开启子线程用于发送数据
-        thread = threading.Thread(
-            target=self.__send_message_thread, args=(message,))
+        thread = threading.Thread(target=self.__send_message_thread, args=(message,))
         thread.setDaemon(True)
         thread.start()
 
@@ -147,10 +171,11 @@ class Client(Cmd):
         登出
         :param args: 参数
         """
-        self.__socket.send(json.dumps({
+        jsonByte = json.dumps({
             'type': 'logout',
             'sender_id': self.__id
-        }).encode())
+        }).encode()
+        self.__send_one_message(self.__socket, jsonByte)
         self.__isLogin = False
         return True
 
