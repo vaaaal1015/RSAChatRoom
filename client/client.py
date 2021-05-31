@@ -78,6 +78,18 @@ class Client(Cmd):
 
                 self.__send_one_message(self.__socket, jsonByte)
 
+    def __send_message_by_id_thread(self, receiver_id, message):
+        if (receiver_id != self.__id and self.__usersPubKey[receiver_id] != None):
+            mesg = ''
+            mesg = self.__encryptMessage(receiver_id, message)
+            jsonByte = json.dumps({
+                'type': 'sendMessage',
+                'sender_id': self.__id,
+                'receiver_id': receiver_id,
+                'message': mesg
+            }).encode()
+            self.__send_one_message(self.__socket, jsonByte)
+
     def start(self):
         self.__socket.connect(('127.0.0.1', 8888))
         self.cmdloop()
@@ -120,6 +132,16 @@ class Client(Cmd):
         thread.setDaemon(True)
         thread.start()
 
+    def do_sid(self, args):
+        id = int(args.split(' ')[0])
+        message = args.split(' ', 1)[1]
+        print('[' + str(self.__nickname) +
+              '(' + str(self.__id) + ')' + ']', message)
+        thread = threading.Thread(
+            target=self.__send_message_by_id_thread, args=(id, message,))
+        thread.setDaemon(True)
+        thread.start()
+
     def do_logout(self, args=None):
         jsonByte = json.dumps({
             'type': 'logout',
@@ -134,11 +156,14 @@ class Client(Cmd):
         if command == '':
             print('[Help] login nickname - 登入到聊天室，nickname是你選擇的暱稱')
             print('[Help] send message - 發送訊息，message是你输入的訊息')
+            print('[Help] sid id message - 發送訊息，id是你發送訊息的對象，message是你输入的訊息')
             print('[Help] logout - 退出聊天室')
         elif command == 'login':
             print('[Help] login nickname - 登入到聊天室，nickname是你選擇的暱稱')
         elif command == 'send':
             print('[Help] send message - 發送訊息，message是你输入的訊息')
+        elif command == 'sid':
+            print('[Help] sid id message - 發送訊息，id是你發送訊息的對象，message是你输入的訊息')
         elif command == 'logout':
             print('[Help] logout - 退出聊天室')
         else:
