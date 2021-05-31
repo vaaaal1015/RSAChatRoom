@@ -5,6 +5,8 @@ import base64
 import rsa
 import struct
 from rsa import PublicKey
+from RSA.RSA_main import RSA_main
+from RSA.RSA_Algrithm import RSA_Algrithm
 
 
 class Server:
@@ -20,6 +22,7 @@ class Server:
         self.__connections = list()
         self.__nicknames = list()
         self.__users_pub_keys = list()
+
     def __user_thread(self, user_id):
         """
         用户子线程
@@ -29,7 +32,8 @@ class Server:
         nickname = self.__nicknames[user_id]
 
         print('[Server] 用户', user_id, nickname, '加入聊天室')
-        self.__broadcast(message='用户 ' + str(nickname) + '(' + str(user_id) + ')' + '加入聊天室')
+        self.__broadcast(message='Usre ' + str(nickname) +
+                         '(' + str(user_id) + ')' + ' join')
 
         # 侦听
         while True:
@@ -49,10 +53,12 @@ class Server:
                         'receiver_d': obj['receiver_id'],
                         'message': obj['message'],
                     }).encode()
-                    self.__send_one_message(self.__connections[obj['receiver_id']], jsonByte)
+                    self.__send_one_message(
+                        self.__connections[obj['receiver_id']], jsonByte)
                 elif obj['type'] == 'logout':
                     print('[Server] 用户', user_id, nickname, '退出聊天室')
-                    self.__broadcast(message='用户 ' + str(nickname) + '(' + str(user_id) + ')' + '退出聊天室')
+                    self.__broadcast(
+                        message='User ' + str(nickname) + '(' + str(user_id) + ')' + ' exeit')
                     self.__connections[user_id].close()
                     self.__connections[user_id] = None
                     self.__nicknames[user_id] = None
@@ -61,14 +67,17 @@ class Server:
                         if user_id != i and self.__connections[i]:
                             jsonByte = json.dumps({
                                 'type': 'logout',
-                                'otherUsersPubKey':self.__users_pub_keys
+                                'otherUsersPubKey': self.__users_pub_keys
                             }).encode()
-                            self.__send_one_message(self.__connections[i], jsonByte)
+                            self.__send_one_message(
+                                self.__connections[i], jsonByte)
                     break
                 else:
-                    print('[Server] 无法解析json数据包:', connection.getsockname(), connection.fileno())
+                    print('[Server] 无法解析json数据包:',
+                          connection.getsockname(), connection.fileno())
             except Exception:
-                print('[Server] 连接失效:', connection.getsockname(), connection.fileno())
+                print('[Server] 连接失效:', connection.getsockname(),
+                      connection.fileno())
                 self.__connections[user_id].close()
                 self.__connections[user_id] = None
                 self.__nicknames[user_id] = None
@@ -77,7 +86,7 @@ class Server:
         for i in range(1, len(self.__connections)):
             self.__sendMessageTo(sender_id, i, message)
 
-    def __send_one_message(self, sock, data): # input bytes
+    def __send_one_message(self, sock, data):  # input bytes
         length = len(data)
         sock.sendall(struct.pack('!I', length))
         sock.sendall(data)
@@ -86,26 +95,30 @@ class Server:
         buf = b''
         while count:
             newbuf = sock.recv(count)
-            if not newbuf: return None
+            if not newbuf:
+                return None
             buf += newbuf
             count -= len(newbuf)
         return buf
 
-    def __recv_one_message(self, sock):  #return jsonObject
+    def __recv_one_message(self, sock):  # return jsonObject
         lengthbuf = self.__recvall(sock, 4)
         length, = struct.unpack('!I', lengthbuf)
         return self.__recvall(sock, length)
 
-
+    # def __encryptMessage(self, receiver_id, message):
+    #     n, e = self.__users_pub_keys[receiver_id][0], self.__users_pub_keys[receiver_id][1]
+    #     message = message.encode('UTF-8')
+    #     message = rsa.encrypt(message, PublicKey(n, e))
+    #     message = base64.b64encode(message)
+    #     message = message.decode('UTF-8')
+    #     return message
 
     def __encryptMessage(self, receiver_id, message):
-        n, e = self.__users_pub_keys[receiver_id][0], self.__users_pub_keys[receiver_id][1]
+        publicKey = self.__users_pub_keys[receiver_id]
         message = message.encode('UTF-8')
-        message = rsa.encrypt(message, PublicKey(n, e))
-        message = base64.b64encode(message)
-        message = message.decode('UTF-8')
+        message = RSA_main(message, publicKey).encrypt()
         return message
-
 
     def __sendMessageTo(self, sender_id=0, receiver_id=0, message=''):
         """
@@ -115,7 +128,7 @@ class Server:
         """
         #print("sender_id = " + str(sender_id))
         #print("receiver_id = " + str(receiver_id))
-        #print(message)
+        # print(message)
         if (self.__connections[receiver_id] != None and sender_id != receiver_id):
 
             if (sender_id == 0):
@@ -134,7 +147,6 @@ class Server:
         n = pubKey['n']
         e = pubKey['e']
         return [n, e]
-
 
     def __waitForLogin(self, connection):
         # 尝试接受数据
@@ -164,13 +176,16 @@ class Server:
                         self.__send_one_message(userConnection, jsonByte)
 
                 # 开辟一个新的线程
-                thread = threading.Thread(target=self.__user_thread, args=(len(self.__connections) - 1,))
+                thread = threading.Thread(
+                    target=self.__user_thread, args=(len(self.__connections) - 1,))
                 thread.setDaemon(True)
                 thread.start()
             else:
-                print('[Server] 无法解析json数据包:', connection.getsockname(), connection.fileno())
+                print('[Server] 无法解析json数据包:',
+                      connection.getsockname(), connection.fileno())
         except Exception:
-            print('[Server] 无法接受数据:', connection.getsockname(), connection.fileno())
+            print('[Server] 无法接受数据:', connection.getsockname(),
+                  connection.fileno())
 
     def start(self):
         """
@@ -193,8 +208,10 @@ class Server:
         # 开始侦听
         while True:
             connection, address = self.__socket.accept()
-            print('[Server] 收到一个新连接', connection.getsockname(), connection.fileno())
+            print('[Server] 收到一个新连接', connection.getsockname(),
+                  connection.fileno())
 
-            thread = threading.Thread(target=self.__waitForLogin, args=(connection,))
+            thread = threading.Thread(
+                target=self.__waitForLogin, args=(connection,))
             thread.setDaemon(True)
             thread.start()

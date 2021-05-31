@@ -6,6 +6,8 @@ import base64
 import struct
 from rsa import PublicKey, PrivateKey
 from cmd import Cmd
+from RSA.RSA_main import RSA_main
+from RSA.RSA_Algrithm import RSA_Algrithm
 
 
 class Client(Cmd):
@@ -24,34 +26,35 @@ class Client(Cmd):
         self.__id = None
         self.__nickname = None
         self.__isLogin = False
-        self.__pubKey, self.__privKey = rsa.newkeys(1024)
+        # self.__pubKey, self.__privKey = rsa.newkeys(1024)
+        self.__pubKey, self.__privKey = RSA_Algrithm().gennerateTwoKeys()
         self.__usersPubKey = list()
-        #print(self.__pubKey['n'])
-        #print(self.__pubKey['e'])
+        # print(self.__pubKey['n'])
+        # print(self.__pubKey['e'])
 
     def __turnPubKeyToList(self, pubk):
         n = pubk['n']
         e = pubk['e']
         return [n, e]
 
-
     def __receive_message_thread(self):
         """
         接受消息线程
         """
         while self.__isLogin:
-        # noinspection PyBroadException
-            try:
-                buffer = self.__recv_one_message(self.__socket).decode()
-                obj = json.loads(buffer)
-                if (obj['type'] == 'login' or obj['type'] == 'logout'):
-                    self.__usersPubKey = obj['otherUsersPubKey']
-                else:
-                    print('[' + str(obj['sender_nickname']) + '(' + str(obj['sender_id']) + ')' + ']', self.__decryptMessage(obj['message']))
-            except Exception:
-                print('[Client] 无法从服务器获取数据')
+            # noinspection PyBroadException
+            # try:
+            buffer = self.__recv_one_message(self.__socket).decode()
+            obj = json.loads(buffer)
+            if (obj['type'] == 'login' or obj['type'] == 'logout'):
+                self.__usersPubKey = obj['otherUsersPubKey']
+            else:
+                print('[' + str(obj['sender_nickname']) + '(' + str(obj['sender_id']
+                                                                    ) + ')' + ']', self.__decryptMessage(obj['message']))
+            # except Exception:
+            #     print('[Client] 无法从服务器获取数据')
 
-    def __send_one_message(self, sock, data): # input bytes
+    def __send_one_message(self, sock, data):  # input bytes
         length = len(data)
         sock.sendall(struct.pack('!I', length))
         sock.sendall(data)
@@ -60,36 +63,46 @@ class Client(Cmd):
         buf = b''
         while count:
             newbuf = sock.recv(count)
-            if not newbuf: return None
+            if not newbuf:
+                return None
             buf += newbuf
             count -= len(newbuf)
         return buf
 
-    def __recv_one_message(self, sock):  #return jsonObject
+    def __recv_one_message(self, sock):  # return jsonObject
         lengthbuf = self.__recvall(sock, 4)
         length, = struct.unpack('!I', lengthbuf)
         return self.__recvall(sock, length)
 
+    # def __encryptMessage(self, receiver_id, message):
+    #     n, e = self.__usersPubKey[receiver_id][0], self.__usersPubKey[receiver_id][1]
+    #     # print(n)
+    #     # print(e)
+    #     message = message.encode('UTF-8')
+    #     message = rsa.encrypt(message, PublicKey(n, e))
+    #     message = base64.b64encode(message)
+    #     message = message.decode('UTF-8')
+    #     # print(message)
+    #     return message
 
     def __encryptMessage(self, receiver_id, message):
-        n, e = self.__usersPubKey[receiver_id][0], self.__usersPubKey[receiver_id][1]
-        #print(n)
-        #print(e)
+        publicKey = self.__usersPubKey[receiver_id]
         message = message.encode('UTF-8')
-        message = rsa.encrypt(message, PublicKey(n, e))
-        message = base64.b64encode(message)
-        message = message.decode('UTF-8')
-        #print(message)
+        message = RSA_main(message, publicKey).encrypt()
         return message
+
+    # def __decryptMessage(self, message):
+    #     # print(message)
+    #     message = message.encode('UTF-8')
+    #     message = base64.b64decode(message)
+    #     message = rsa.decrypt(message, self.__privKey)
+    #     message = message.decode('UTF-8')
+    #     return message
 
     def __decryptMessage(self, message):
-        #print(message)
-        message = message.encode('UTF-8')
-        message = base64.b64decode(message)
-        message = rsa.decrypt(message, self.__privKey)
+        message = RSA_main(message, self.__privKey).decrypt()
         message = message.decode('UTF-8')
         return message
-
 
     def __send_message_thread(self, message):
         """
@@ -127,7 +140,8 @@ class Client(Cmd):
         jsonByte = json.dumps({
             'type': 'login',
             'nickname': nickname,
-            'pubkey': self.__turnPubKeyToList(self.__pubKey)
+            # 'pubkey': self.__turnPubKeyToList(self.__pubKey)
+            'pubkey': self.__pubKey
         }).encode()
 
         self.__send_one_message(self.__socket, jsonByte)
@@ -160,9 +174,11 @@ class Client(Cmd):
         """
         message = args
         # 显示自己发送的消息
-        print('[' + str(self.__nickname) + '(' + str(self.__id) + ')' + ']', message)
+        print('[' + str(self.__nickname) +
+              '(' + str(self.__id) + ')' + ']', message)
         # 开启子线程用于发送数据
-        thread = threading.Thread(target=self.__send_message_thread, args=(message,))
+        thread = threading.Thread(
+            target=self.__send_message_thread, args=(message,))
         thread.setDaemon(True)
         thread.start()
 
